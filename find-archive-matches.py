@@ -4,6 +4,7 @@ import argparse
 import difflib
 import hashlib
 import shutil
+import time
 from pathlib import Path
 from git import Repo, InvalidGitRepositoryError
 
@@ -75,7 +76,21 @@ def compare_files(archive_path, git_root, git_subfolder, useDiff):
 
     print("=== File Version Comparisons ===")
 
-    for archive_file in archive_path.rglob("*"):
+    archive_files_list = list(archive_path.rglob("*"))
+    archive_files_list.sort()
+
+    print(f"Files to compare: {len(archive_files_list)}")
+    last_progress_time = time.time()
+    last_progress_index = 0
+    progress_interval = 60
+
+    for aindex, archive_file in enumerate(archive_files_list):
+        if time.time() - last_progress_time > progress_interval:
+            dtleft = (len(archive_files_list)-aindex) / (aindex-last_progress_index) * progress_interval
+            print(f"-- Files left to compare {len(archive_files_list)-aindex}; estimated amount of minutes till the end: {dtleft/60.0:0.0f} minutes")
+            last_progress_time = time.time()
+            last_progress_index = aindex
+
         if archive_file.is_file():
             relative_file = archive_file.relative_to(archive_path)
             if is_git_related(relative_file):
@@ -130,10 +145,10 @@ def compare_files(archive_path, git_root, git_subfolder, useDiff):
                                 tofile="InArchive",
                             )
                             diff = "".join(diff)
-                            diff_lenght = len(diff.splitlines())
-                            if min_diff_length is None or min_diff_length > diff_lenght:
+                            diff_length = len(diff.splitlines())
+                            if min_diff_length is None or min_diff_length > diff_length:
                                 min_diff_commit = commit
-                                min_diff_length = diff_lenght
+                                min_diff_length = diff_length
 
                     if matching_commit:
                         print(
@@ -143,7 +158,7 @@ def compare_files(archive_path, git_root, git_subfolder, useDiff):
                         print_result(
                             f"Differing file without match: {relative_file}"
                             + (
-                                f"-- closest commit: {min_diff_commit.hexsha} (lines changed {min_diff_length})"
+                                f" -- closest commit: {min_diff_commit.hexsha} (lines changed {min_diff_length})"
                                 if useDiff
                                 else ""
                             )
