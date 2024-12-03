@@ -61,11 +61,11 @@ def find_missing_items(archive_path, git_root, git_subfolder):
 
         if archive_item.is_dir():
             if not git_equivalent.is_dir():
-                print_result(f"Missing directory: {relative_path}")
+                print_result(f"Missing directory: {git_subfolder / relative_path}")
         elif archive_item.is_file():
             if not git_equivalent.exists():
-                print_result(f"Missing file: {relative_path}")
-                FilesWithoutMatch.append(relative_path)
+                print_result(f"Missing file: {git_subfolder / relative_path}")
+                FilesWithoutMatch.append(git_subfolder / relative_path)
 
 
 def compare_files(archive_path, git_root, git_subfolder, useDiff):
@@ -152,11 +152,11 @@ def compare_files(archive_path, git_root, git_subfolder, useDiff):
 
                     if matching_commit:
                         print(
-                            f"Older file: {relative_file} -- matching commit: {matching_commit.hexsha} ({counter} changes from head)"
+                            f"Older file: {git_subfolder / relative_file} -- matching commit: {matching_commit.hexsha} ({counter} changes from head)"
                         )
                     else:
                         print_result(
-                            f"Differing file without match: {relative_file}"
+                            f"Differing file without match: {git_subfolder / relative_file}"
                             + (
                                 f" -- closest commit: {min_diff_commit.hexsha} (lines changed {min_diff_length})"
                                 if useDiff
