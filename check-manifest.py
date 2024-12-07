@@ -85,9 +85,11 @@ def parse_manifest(manifest_path):
     root = tree.getroot()
 
     # Extract manifest properties
+    manifest_tag = root.tag
     manifest_type = root.attrib.get("type")
     manifest_version = root.attrib.get("version")
     target_level = root.attrib.get("target-level")
+    print("Loading", manifest_tag)
 
     # Extract HAL records
     hal_records = []
@@ -95,10 +97,10 @@ def parse_manifest(manifest_path):
         record = HalRecord.from_element(hal)
         hal_records.append(record)
 
-    return manifest_type, manifest_version, target_level, hal_records
+    return manifest_tag, manifest_type, manifest_version, target_level, hal_records
 
 
-def preload_stock_manifests(stock_tree_path, type_to_load):
+def preload_stock_manifests(stock_tree_path, tag_to_load, type_to_load):
     """
     Load all stock manifests into memory, grouped by type.
     """
@@ -109,9 +111,10 @@ def preload_stock_manifests(stock_tree_path, type_to_load):
         try:
             tree = ET.parse(manifest_file)
             root = tree.getroot()
+            manifest_tag = root.tag
             manifest_type = root.attrib.get("type")
 
-            if manifest_type != type_to_load:
+            if manifest_tag != tag_to_load or manifest_type != type_to_load:
                 continue
 
             print(f"Loading {manifest_file}")
@@ -176,12 +179,12 @@ def main(my_manifest, stock_tree, output):
         return
 
     # Parse my manifest
-    my_type, my_version, my_target_level, my_hal_records = parse_manifest(my_manifest_path)
-    print(f"My manifest type: {my_type}, version: {my_version}, target-level: {my_target_level}")
+    my_tag, my_type, my_version, my_target_level, my_hal_records = parse_manifest(my_manifest_path)
+    print(f"My '{my_tag}' type: {my_type}, version: {my_version}, target-level: {my_target_level}")
 
     # Preload all stock manifests
     print("Preloading stock manifests...")
-    stock_manifests = preload_stock_manifests(stock_tree_path, my_type)
+    stock_manifests = preload_stock_manifests(stock_tree_path, my_tag, my_type)
 
     print()
 
@@ -209,13 +212,14 @@ def main(my_manifest, stock_tree, output):
     print(f"Matching records: {matched}")
     print(f"Mismatched records: {len(my_hal_records) - matched}")
 
-    combine_elements(my_manifest_path, elements, output)
+    if output:
+        combine_elements(my_manifest_path, elements, output)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Compare HAL records between two manifests.")
     parser.add_argument("my_manifest", type=str, help="Path to the manifest.xml file.")
     parser.add_argument("stock_tree", type=str, help="Path to the stock ROM tree.")
-    parser.add_argument("output", type=str, help="Path to the combined manifest.xml file.")
+    parser.add_argument("--output", type=str, default=None, help="Path to the combined manifest.xml file.")
     args = parser.parse_args()
     main(args.my_manifest, args.stock_tree, args.output)
