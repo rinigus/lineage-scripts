@@ -10,6 +10,7 @@ from git import Repo, InvalidGitRepositoryError
 
 Messages = []
 FilesWithoutMatch = []
+FilesMissing = []
 
 
 def print_result(message):
@@ -65,7 +66,7 @@ def find_missing_items(archive_path, git_root, git_subfolder):
         elif archive_item.is_file():
             if not git_equivalent.exists():
                 print_result(f"Missing file: {git_subfolder / relative_path}")
-                FilesWithoutMatch.append(git_subfolder / relative_path)
+                FilesMissing.append(git_subfolder / relative_path)
 
 
 def compare_files(archive_path, git_root, git_subfolder, useDiff):
@@ -103,7 +104,11 @@ def compare_files(archive_path, git_root, git_subfolder, useDiff):
                     archive_txt = f.read()
                     archive_sha = hashlib.sha256(archive_txt).hexdigest()
                     if useDiff:
-                        archive_lines = archive_txt.decode().splitlines(keepends=True)
+                        try:
+                            archive_lines = archive_txt.decode().splitlines(keepends=True)
+                        except UnicodeDecodeError:
+                            print(f'Error while decoding archive file: {archive_file}. Skipping the file')
+                            break
 
                 if archive_sha != sha256sum(git_file):
                     file_commits = list(
@@ -209,6 +214,8 @@ def main():
     )
     parser.add_argument("--diff", default=False, action=argparse.BooleanOptionalAction)
     parser.add_argument("--copy-files", action="store_true")
+    parser.add_argument("--make-merge-script", action="store_true")
+    parser.add_argument("--merge-script-export-dir")
 
     args = parser.parse_args()
 
@@ -222,7 +229,18 @@ def main():
     try:
         git_root = find_git_root(git_path)
         git_subfolder = git_path.relative_to(git_root)
-        print(f"\nGit repository root: {git_root}\n")
+
+        # find archive root
+        archive_root = archive_path
+        while archive_root / git_subfolder != archive_path and archive_root != archive_root.parent:
+            archive_root = archive_root.parent
+        if archive_root / git_subfolder != archive_path:
+            raise RuntimeError("Error finding archive root, cancelling")
+
+        print(f"\nGit repository root: {git_root}")
+        print(f"Git subfolder: {git_subfolder}")
+        print(f"Archive root: {archive_root}")
+        print()
     except InvalidGitRepositoryError as e:
         print(f"Error: {e}")
         return
@@ -242,10 +260,26 @@ def main():
     if args.copy_files:
         print()
         print("Copy files\n")
-        for f in sorted(FilesWithoutMatch):
+        fall = FilesWithoutMatch + FilesMissing
+        for f in sorted(fall):
             print(archive_path / f, "-->", git_path / f)
             shutil.copy(archive_path / f, git_path / f)
 
+    # make merge script if requested
+    if args.make_merge_script:
+        with open("merge-script.sh", "w") as fscript:
+            files = [str(git_subfolder / f) for f in FilesWithoutMatch]
+            files = " ".join(files)
+            fscript.write(
+f"""
+#!/bin/bash
+
+set -e
+
+for i in {files}; do
+   kernel-archive-merge-and-export.sh "{args.merge_script_export_dir}" "{archive_root}" $i
+done
+""")
 
 if __name__ == "__main__":
     main()
