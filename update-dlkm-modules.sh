@@ -15,6 +15,9 @@ SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
 # Locate the copy-modules script
 COPY_MODULES="$SCRIPT_DIR/copy-modules.sh"
 
+# required SELinux attribute
+SELINUX_ATTR="u:object_r:vendor_file:s0"
+
 # Check if copy-modules exists and is executable
 if [[ ! -x "$COPY_MODULES" ]]; then
     error_exit "The 'copy-modules' script was not found in '$SCRIPT_DIR' or is not executable."
@@ -55,7 +58,7 @@ sudo mount -o ro "$LOOP_DEVICE_ORIG" "$MOUNT_POINT_ORIG"
 
 # Calculate the size of the new image
 IMAGE_SIZE=$(du -sb "$MOUNT_POINT_ORIG" | awk '{print $1}')
-RESERVED_SPACE=$((IMAGE_SIZE / 4))
+RESERVED_SPACE=$((IMAGE_SIZE / 2))
 NEW_IMAGE_SIZE=$((IMAGE_SIZE + RESERVED_SPACE))
 echo "Creating new image of size: $NEW_IMAGE_SIZE bytes (including $RESERVED_SPACE reserved space)"
 
@@ -97,12 +100,15 @@ if [[ ! -d "$DEST_MODULES" ]]; then
     error_exit "Modules folder '$DEST_MODULES' not found inside the new image."
 fi
 
-# # Use the copy-modules script to update the modules
-# echo "Updating kernel modules using '$COPY_MODULES'..."
-# sudo "$COPY_MODULES" "$SOURCE_MODULES" "$DEST_MODULES"
+# Use the copy-modules script to update the modules
+echo "Updating kernel modules using '$COPY_MODULES'..."
+sudo "$COPY_MODULES" "$SOURCE_MODULES" "$DEST_MODULES"
 
 df -h $MOUNT_POINT_NEW
 df $MOUNT_POINT_NEW
+
+# Set selinux attrs
+sudo find "$MOUNT_POINT_NEW" -exec setfattr -n security.selinux -v "$SELINUX_ATTR" {} \;
 
 # Unmount the new image
 echo "Unmounting new image..."
@@ -112,11 +118,6 @@ sudo losetup -d "$LOOP_DEVICE_NEW"
 # Shrink the new image to the minimum required size
 echo "Shrinking new image to the minimum required size..."
 e2fsck -f "$NEW_IMG"
-resize2fs -M "$NEW_IMG"
-
-# # Reserve 5% space
-# echo "Reserving 5% free space in the filesystem..."
-# resize2fs "$NEW_IMG" "$NEW_IMAGE_SIZE"
 
 # Cleanup
 echo "Cleaning up mount points..."
@@ -124,5 +125,15 @@ sudo rmdir "$MOUNT_POINT_ORIG" "$MOUNT_POINT_NEW"
 
 tune2fs -O ^has_journal,^resize_inode,^metadata_csum,^64bit,^flex_bg "$NEW_IMG" || true
 e2fsck -f "$NEW_IMG"
+resize2fs -M "$NEW_IMG"
+e2fsck -f "$NEW_IMG"
+
+PSIZE=$((60*1024*1024))
+avbtool add_hash_footer \
+   --partition_name vendor_dlkm \
+   --partition_size $PSIZE \
+   --prop com.android.build.vendor_dlkm.fingerprint:'Sony/pdx223/pdx223:12/SKQ1.220714.001/1:user/release-keys' \
+   --prop com.android.build.vendor_dlkm.os_version:'12' \
+   --image "$NEW_IMG"
 
 echo "New image created successfully: $NEW_IMG"
