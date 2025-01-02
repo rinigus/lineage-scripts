@@ -34,6 +34,7 @@ if [[ ${#DEST_MODULES[@]} -eq 0 ]]; then
     error_exit "No .ko files found in the destination folder."
 fi
 
+MISSING_MODULES=""
 # Iterate over destination modules and copy them from the source folder
 for MODULE in "${DEST_MODULES[@]}"; do
     MODULE_NAME=$(basename "$MODULE")  # Extract the file name
@@ -45,7 +46,12 @@ for MODULE in "${DEST_MODULES[@]}"; do
     else
         echo "Module '$MODULE_NAME' not found in the source folder."
         #error_exit "Module '$MODULE_NAME' not found in the source folder."
+        MISSING_MODULES="$MISSING_MODULES $MODULE_NAME"
     fi
 done
 
-echo "All matching modules copied successfully."
+if [[ -z "${MISSING_MODULES}" ]]; then
+    echo "All matching modules copied successfully."
+else
+    echo "Missing modules $MISSING_MODULES skipped."
+fi
