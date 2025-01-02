@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
+import re
 from dataclasses import dataclass
 from termcolor import cprint
 
@@ -10,11 +11,48 @@ class DiffEntry:
     line_number_old: int
     line_number_new: int
     content: str
+    
 
+class Line:
+    def __init__(self, line):
+        self.line = line
 
+    def sub(self, f, t):
+        self.line = re.sub(f, t, self.line)
+
+    def skip(self, *starts):
+        for s in starts:
+            if self.line.startswith(s):
+                return True
+        return False
+    
 def preprocess_dmesg(lines):
     """Preprocess dmesg logs to remove the timing column."""
-    return [line.split("]", 2)[-1].strip() if "]" in line else line for line in lines]
+    processed = []
+    for line in lines:
+        line = Line(line.split("]", 2)[-1].strip() if "]" in line else line)
+
+        # drop unimportant lines
+        if line.skip("healthd: battery l="):
+            continue
+        
+        # replace some values with a dummy
+        line.sub(r'audit\(([\d.]+:\d+)\)', 'audit(REPLACED)')
+        line.sub(r' duration=\d+', ' duration=REPLACED')
+        line.sub(r'Adding to iommu group \d+', 'Adding to iommu group REPLACED')
+        line.sub(r'pid \d+', 'pid REPLACED')
+        line.sub(r'pid=\d+', 'pid=REPLACED')
+        line.sub(r'pid: \d+', 'pid: REPLACED')
+        line.sub(r'pid:\d+', 'pid:REPLACED')
+        line.sub(r'PID: \d+', 'PID: REPLACED')
+        line.sub(r'\[\d+ \]', '[REPLACED ]')
+        line.sub(r'CPU: \d+', 'CPU: R')
+        line.sub(r'Port: \d+', 'Port: R')
+        line.sub(r'took \d+.\d+ seconds', 'took REPLACED seconds')
+        line.sub(r'took \d+ms', 'took REPLACEDms')
+        line.sub(r'took \d+ ms', 'took REPLACED ms')
+        processed.append(line.line)
+    return processed
 
 
 def read_file(filepath):
