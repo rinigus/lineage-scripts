@@ -2,7 +2,8 @@
 
 import argparse
 from dataclasses import dataclass
-from typing import List
+from termcolor import cprint
+
 
 @dataclass
 class DiffEntry:
@@ -13,7 +14,7 @@ class DiffEntry:
 
 def preprocess_dmesg(lines):
     """Preprocess dmesg logs to remove the timing column."""
-    return [line.split("]", 1)[-1].strip() if "]" in line else line for line in lines]
+    return [line.split("]", 2)[-1].strip() if "]" in line else line for line in lines]
 
 
 def read_file(filepath):
@@ -41,13 +42,26 @@ def compare_logs(file1_lines, file2_lines, context=100):
                 break
 
         if not found:
-            result.append(DiffEntry(line_number_old=i + 1, line_number_new=-1, content=line1.strip()))
+            result.append(
+                DiffEntry(
+                    line_number_old=i + 1, line_number_new=-1, content=line1.strip()
+                )
+            )
 
     for i, line2 in enumerate(file2_lines):
         if i not in used_indices:
-            result.append(DiffEntry(line_number_old=-1, line_number_new=i + 1, content=line2.strip()))
+            result.append(
+                DiffEntry(
+                    line_number_old=-1, line_number_new=i + 1, content=line2.strip()
+                )
+            )
 
-    return sorted(result, key=lambda x: (x.line_number_old if x.line_number_old != -1 else x.line_number_new))
+    return sorted(
+        result,
+        key=lambda x: (
+            x.line_number_old if x.line_number_old != -1 else x.line_number_new
+        ),
+    )
 
 
 def main():
@@ -86,15 +100,25 @@ def main():
 
     # Output results
     for entry in diff:
-        line_number_old = f"{entry.line_number_old}" if entry.line_number_old != -1 else "-"
-        line_number_new = f"{entry.line_number_new}" if entry.line_number_new != -1 else "-"
+        line_number_old = (
+            f"{entry.line_number_old}" if entry.line_number_old != -1 else "-"
+        )
+        line_number_new = (
+            f"{entry.line_number_new}" if entry.line_number_new != -1 else "-"
+        )
         if args.no_color:
             print(f"{line_number_old:>6} {line_number_new:>6} {entry.content}")
         else:
             if entry.line_number_old == -1:
-                print(f"\033[92m{line_number_old:>6} {line_number_new:>6} {entry.content}\033[0m")  # Green for added lines
+                cprint(
+                    f"{line_number_old:>6} {line_number_new:>6} {entry.content}",
+                    "green",
+                )  # Green for added lines
             elif entry.line_number_new == -1:
-                print(f"\033[91m{line_number_old:>6} {line_number_new:>6} {entry.content}\033[0m")  # Red for removed lines
+                cprint(
+                    f"{line_number_old:>6} {line_number_new:>6} {entry.content}",
+                    "light_yellow",
+                )  # for removed lines
             else:
                 print(f"{line_number_old:>6} {line_number_new:>6} {entry.content}")
 
