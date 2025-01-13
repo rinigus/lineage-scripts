@@ -1,5 +1,15 @@
 #!/bin/bash
 
+# Script to build stock kernel with external modules from Lineage sm8450-modules
+# To use:
+#  - setup environment as for GKI https://source.android.com/docs/setup/build/building-kernels
+#  - add Sony kernel (kernel-copyleft) and modules to it. Below, /android/external/kernel and /android/external/sm8450-modules were used
+#    Note that modules have to be in sm8450-modules folder
+#  - disable buildng dtb/dtbo in sony copyright kernel before building
+#    (can just comment out make all install "${DTC_MAKE_ARGS[@]}" ... line in build.config.msm.common)
+#  - run this script
+
+
 export EXT_MODULES="
     external/sm8450-modules/qcom/opensource/mmrm-driver
     external/sm8450-modules/qcom/opensource/audio-kernel
@@ -17,6 +27,7 @@ export EXT_MODULES="
     external/sm8450-modules/qcom/opensource/datarmnet-ext/wlan \
     external/sm8450-modules/qcom/opensource/eva-kernel \
     external/sm8450-modules/qcom/opensource/video-driver \
+    external/sm8450-modules/qcom/opensource/wlan/qcacld-3.0/.qca6490 \
     external/sm8450-modules/cirrus/kernel-modules/cs35l41/sound/soc/codecs \
     external/sm8450-modules/cirrus/kernel-modules/cs40l25/drivers/misc \
     external/sm8450-modules/cirrus/kernel-modules/cs40l25/sound/soc/codecs \
@@ -31,15 +42,10 @@ export EXT_MODULES="
     external/sm8450-modules/semc/hardware/kernel-modules/misc/last_logs \
     external/sm8450-modules/semc/hardware/kernel-modules/misc/ldo_vibrator \
     external/sm8450-modules/semc/hardware/kernel-modules/misc/powerkey_forcecrash \
+    external/sm8450-modules/semc/hardware/kernel-modules/misc/rdtags \
     external/sm8450-modules/semc/hardware/kernel-modules/msm/sec_ts \
     external/sm8450-modules/semc/hardware/nfc/drivers/sn1x0_i2c \
     external/sm8450-modules/semc/hardware/nfc/drivers/sn1x0_spi
-"
-# worked before with this on top: external/kernel/kernel-modules/mmrm-driver 
-
-excluded="
-    
-    external/sm8450-modules/qcom/opensource/wlan/qcacld-3.0/.qca6490 \
 "
 
 # export SKIP_MRPROPER=1
@@ -47,7 +53,6 @@ excluded="
 
 export BUILD_CONFIG=external/kernel/build.config.msm.waipio
 export VARIANT=gki
-#export VARIANT=consolidate
 export LTO=thin
 
 echo Building with external modules

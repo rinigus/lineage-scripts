@@ -104,6 +104,18 @@ fi
 echo "Updating kernel modules using '$COPY_MODULES'..."
 sudo "$COPY_MODULES" "$SOURCE_MODULES" "$DEST_MODULES"
 
+# # inject extra required modules
+# echo Injecting extra modules
+# sudo cp "$SOURCE_MODULES"/wsa881x_dlkm.ko "$DEST_MODULES"
+# sudo sed -i -E "/vendor\/lib\/modules\/machine_dlkm\.ko:/ s|(^.*vendor/lib/modules/machine_dlkm\.ko:)|\1 /vendor/lib/modules/wsa881x_dlkm.ko|" "$DEST_MODULES"/modules.dep
+# grep wsa883x_dlkm.ko: "$DEST_MODULES"/modules.dep | sed "s/wsa883x_dlkm.ko/wsa881x_dlkm.ko/g" | sudo bash -c "cat >> $DEST_MODULES/modules.dep"
+# echo wsa881x_dlkm.ko | sudo bash -c "cat >> $DEST_MODULES/modules.load"
+
+# echo Edit files as needed
+# (cd "$DEST_MODULES" && sudo bash)
+# echo Back
+
+
 df -h $MOUNT_POINT_NEW
 df $MOUNT_POINT_NEW
 

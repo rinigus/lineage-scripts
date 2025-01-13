@@ -30,16 +30,29 @@ COMM_TO_GO=${output#Closest commit: }
 
 echo Closest commit is $COMM_TO_GO
 
+# Checkout the closest commit and prepare for the merge
 git checkout $COMM_TO_GO
 cp $ARCHIVE_DIR/$FILE $FILE
 git diff
 git add $FILE
 git commit -m "Apply Sony changes"
-git merge -m "Merge back" $COMM_ID_HEAD
 
+# Attempt the merge and handle conflicts
+if ! git merge -m "Merge back" $COMM_ID_HEAD; then
+    echo "Merge conflict detected. Dropping into shell for resolution."
+    echo "Resolve conflicts and run 'git merge --continue' when done, or 'git merge --abort' to cancel."
+    bash
+    # Check the status after exiting the shell
+    if git diff --name-only --diff-filter=U | grep -q "$FILE"; then
+        echo "Conflict not resolved. Exiting."
+        exit 1
+    fi
+fi
+
+# Export the final file
 cp $FILE $EXPORT/$FILE
 git checkout $COMM_ID_HEAD
 
 echo
-echo Done: Merged changes for $FILE
+echo "Done: Merged changes for $FILE"
 echo

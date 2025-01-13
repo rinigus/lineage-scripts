@@ -3,15 +3,15 @@
 # # This script unpacks boot image
 
 # Check if the script received arguments
-if [ "$#" -ne 3 ]; then
-    echo "Usage: $0 <AOSP-sources-path> <boot_image_file> <folder_to_unpack>"
+if [ "$#" -ne 2 ]; then
+    echo "Usage: $0 <boot_image_file> <folder_to_unpack>"
     exit 1
 fi
 
 # Input
-PATH="$1"/out/host/linux-x86/bin:$PATH:`dirname $0`
-BOOT_IMG="$2"
-UNPACK_FOLDER_BASE="$3"
+PATH=$PATH:`dirname $0`
+BOOT_IMG="$1"
+UNPACK_FOLDER_BASE="$2"
 
 if [[ ! -f "$BOOT_IMG" ]]; then
     echo "Error: File '$BOOT_IMG' not found!"

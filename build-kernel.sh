@@ -35,6 +35,7 @@ EXT_MODULES="
     external/sm8450-modules/qcom/opensource/datarmnet-ext/wlan \
     external/sm8450-modules/qcom/opensource/eva-kernel \
     external/sm8450-modules/qcom/opensource/video-driver \
+    external/sm8450-modules/qcom/opensource/wlan/qcacld-3.0/.qca6490 \
     external/sm8450-modules/cirrus/kernel-modules/cs35l41/sound/soc/codecs \
     external/sm8450-modules/cirrus/kernel-modules/cs40l25/drivers/misc \
     external/sm8450-modules/cirrus/kernel-modules/cs40l25/sound/soc/codecs \
@@ -49,6 +50,7 @@ EXT_MODULES="
     external/sm8450-modules/semc/hardware/kernel-modules/misc/last_logs \
     external/sm8450-modules/semc/hardware/kernel-modules/misc/ldo_vibrator \
     external/sm8450-modules/semc/hardware/kernel-modules/misc/powerkey_forcecrash \
+    external/sm8450-modules/semc/hardware/kernel-modules/misc/rdtags \
     external/sm8450-modules/semc/hardware/kernel-modules/msm/sec_ts \
     external/sm8450-modules/semc/hardware/nfc/drivers/sn1x0_i2c \
     external/sm8450-modules/semc/hardware/nfc/drivers/sn1x0_spi
@@ -87,7 +89,9 @@ make O=$BUILD_DIR V=1 gki_defconfig
 echo "Merging vendor config..."
 scripts/kconfig/merge_config.sh -O $BUILD_DIR \
     arch/arm64/configs/gki_defconfig \
-    arch/arm64/configs/vendor/waipio_GKI.config
+    arch/arm64/configs/vendor/waipio_GKI.config \
+    arch/arm64/configs/vendor/sony/nagara.config \
+    arch/arm64/configs/vendor/sony/pdx223.config
 
 # Configure LTO
 echo "========================================================"
@@ -163,7 +167,7 @@ if [ ! -z "${EXT_MODULES}" ]; then
         if [ -d ${MDIR} ]; then
             echo "Building ${EXT_MOD}..."          
             pushd ${MDIR}
-            RELATIVE_PATH=$(realpath --relative-to="$KERNEL_DIR" "$MDIR")
+            RELATIVE_PATH=$(realpath --no-symlinks --relative-to="$KERNEL_DIR" "$MDIR")
             make KERNEL_SRC=$KERNEL_DIR OUT_DIR=$BUILD_DIR $KBUILD_OPTIONS M=${RELATIVE_PATH}
             make KERNEL_SRC=$KERNEL_DIR OUT_DIR=$BUILD_DIR $KBUILD_OPTIONS M=${RELATIVE_PATH} modules_install INSTALL_MOD_PATH=$TEMP_MOD_DIR
             popd
