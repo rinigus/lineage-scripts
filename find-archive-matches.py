@@ -66,7 +66,7 @@ def find_missing_items(archive_path, git_root, git_subfolder):
         elif archive_item.is_file():
             if not git_equivalent.exists():
                 print_result(f"Missing file: {git_subfolder / relative_path}")
-                FilesMissing.append(git_subfolder / relative_path)
+                FilesMissing.append(relative_path)
 
 
 def compare_files(archive_path, git_root, git_subfolder, useDiff):
