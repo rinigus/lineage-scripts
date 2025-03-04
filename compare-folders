@@ -1,0 +1,61 @@
+#!/usr/bin/env python
+
+import argparse
+import hashlib
+from pathlib import Path
+
+def get_sorted_files_and_dirs(directory: Path):
+    """Recursively get all files and directories in sorted order."""
+    return sorted(p.relative_to(directory) for p in directory.rglob('*'))
+
+def compute_md5(file_path: Path):
+    """Compute the MD5 hash of a file."""
+    hasher = hashlib.md5()
+    try:
+        with file_path.open('rb') as f:
+            for chunk in iter(lambda: f.read(4096), b""):
+                hasher.update(chunk)
+        return hasher.hexdigest()
+    except Exception as e:
+        print(f"Error reading {file_path}: {e}")
+        return None
+
+def main():
+    parser = argparse.ArgumentParser(description="Compare files in two directories.")
+    parser.add_argument("--same", action="store_true", help="Find files that are identical in both directories")
+    parser.add_argument("dir1", type=Path, help="First directory")
+    parser.add_argument("dir2", type=Path, help="Second directory")
+    args = parser.parse_args()
+    
+    dir1_files = set(get_sorted_files_and_dirs(args.dir1))
+    dir2_files = set(get_sorted_files_and_dirs(args.dir2))
+    
+    if args.same:
+        common_files = dir1_files & dir2_files
+        identical_files = []
+        
+        for file in sorted(common_files):
+            file1 = args.dir1 / file
+            file2 = args.dir2 / file
+            if file1.is_file() and file2.is_file():
+                if compute_md5(file1) == compute_md5(file2):
+                    identical_files.append(file)
+        
+        print("Identical files in both directories:")
+        for file in identical_files:
+            print(file)
+        return
+
+    else:
+        missing_in_dir1 = sorted(dir2_files - dir1_files)
+        missing_in_dir2 = sorted(dir1_files - dir2_files)
+        
+        print(f"Files and directories differences:\n - {args.dir1}\n + {args.dir2}\n")
+        diff = [[f, "+"] for f in missing_in_dir1]
+        diff.extend([[f, "-"] for f in missing_in_dir2])
+        for file, sign in sorted(diff):
+            print(sign, file)
+        print()
+
+if __name__ == "__main__":
+    main()
