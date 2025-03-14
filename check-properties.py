@@ -21,6 +21,7 @@ class PropLine:
     property_name: Optional[str] = None
     property_value: Optional[str] = None
     line: str = ''
+    file: str = ''
 
 def parse_prop_file(file_path):
     """
@@ -40,7 +41,7 @@ def parse_prop_file(file_path):
             
             # Empty line or line with comment
             if not line or line.startswith('#'):
-                prop_lines.append(PropLine(is_property=False, line=line))
+                prop_lines.append(PropLine(is_property=False, line=line, file=file_path))
                 continue
                         
             # Property
@@ -51,11 +52,12 @@ def parse_prop_file(file_path):
                     is_property=True, 
                     property_name=prop.strip(), 
                     property_value=value.strip(), 
-                    line=line
+                    line=line,
+                    file=file_path,
                 ))
             else:
                 # Unrecognized line type
-                raise Exception(f"Unrecognized line {line}")
+                print(f"Failed to parse line in {file_path}: {line}")
 
     
     return prop_lines
@@ -76,47 +78,33 @@ def load_properties(prop_lines):
         if line.is_property
     }
 
-def find_prop_files(stock_rom_folder):
+def find_prop_files(rom_folder):
     """
     Recursively find all .prop files in the stock rom folder.
     
     Args:
-        stock_rom_folder (pathlib.Path): Path to stock rom folder
+        rom_folder (pathlib.Path): Path to stock rom folder
     
     Returns:
         list: List of paths to .prop files
     """
-    return list(stock_rom_folder.rglob('*.prop'))
+    return list(rom_folder.rglob('*.prop'))
 
-def load_stock_properties(stock_prop_files):
+def load_properties_from_files(prop_files):
     """
-    Load properties from all stock ROM prop files.
+    Load properties from all prop files.
     
     Args:
-        stock_prop_files (list): List of .prop file paths
+        prop_files (list): List of .prop file paths
     
     Returns:
         dict: Merged properties from all stock ROM prop files
     """
-    stock_properties = {}
-    for prop_file in stock_prop_files:
-        try:
-            with open(prop_file, 'r') as f:
-                for line in f:
-                    line = line.strip()
-                    if not line or line.startswith('#'):
-                        continue
-                    
-                    match = re.match(r'^([^=]+)=(.*)$', line)
-                    if match:
-                        prop, value = match.groups()
-                        stock_properties[prop.strip()] = value.strip()
-                    else:
-                        print(f"Failed to parse {prop_file}: {line}")
-        except Exception as e:
-            print(f"Error reading {prop_file}: {e}")
+    properties = []
+    for prop_file in prop_files:
+        properties.extend(parse_prop_file(prop_file))
     
-    return stock_properties
+    return properties
 
 def compare_properties(custom_props, stock_props):
     """
@@ -151,13 +139,18 @@ def main():
     parser = argparse.ArgumentParser(description='Compare custom properties with stock ROM properties')
     parser.add_argument('prop_file', type=pathlib.Path, help='Path to custom properties file')
     parser.add_argument('stock_rom_folder', type=pathlib.Path, help='Path to stock ROM folder')
+    parser.add_argument('--missing', action='store_true', help='Check which properties are missing from stock')
     parser.add_argument('--output', type=pathlib.Path, help='Optional output file path')
     
     args = parser.parse_args()
     
     # Validate inputs
-    if not args.prop_file.is_file():
-        print(f"Error: Property file {args.prop_file} does not exist.")
+    if args.missing and args.prop_file.is_dir():
+        missing=True
+    elif not args.missing and args.prop_file.is_file():
+        missing=False
+    else:
+        print(f"Error: Property file/directory {args.prop_file} does not exist.")
         return
     
     if not args.stock_rom_folder.is_dir():
@@ -165,46 +158,66 @@ def main():
         return
     
     # Load custom properties
-    prop_lines = parse_prop_file(args.prop_file)
-    custom_props = load_properties(prop_lines)
+    if missing:
+        custom_prop_files = find_prop_files(args.prop_file)
+        custom_prop_lines = load_properties_from_files(custom_prop_files)
+    else:
+        custom_prop_lines = parse_prop_file(args.prop_file)
+    custom_props = load_properties(custom_prop_lines)
     
     # Find and load stock ROM properties
     stock_prop_files = find_prop_files(args.stock_rom_folder)
-    stock_props = load_stock_properties(stock_prop_files)
+    stock_prop_lines = load_properties_from_files(stock_prop_files)
+    stock_props = load_properties(stock_prop_lines)
     
     # Compare properties
-    differences = compare_properties(custom_props, stock_props)
+    if missing:
+        differences = compare_properties(stock_props, custom_props)
+        ref, cust = "Custom", "Stock"
+    else:
+        differences = compare_properties(custom_props, stock_props)
+        ref, cust = "Stock", "Custom"
     
     # Print differences
     if differences:
         print("Property Differences Found:")
         for prop, vals in differences.items():
             if vals['stock'] == 'NOT_FOUND':
-                print(f"- {prop}: Not found in stock ROM (Custom value: {vals['custom']})")
+                print(f"- {prop}: Not found in {ref} ROM ({cust} value: {vals['custom']})")
             else:
-                print(f"- {prop}: Custom={vals['custom']} | Stock={vals['stock']}")
+                print(f"- {prop}: {cust}={vals['custom']} | {ref}={vals['stock']}")
     else:
         print("No differences found between custom and stock properties.")
     
     # Optional output file generation
     if args.output:
         with open(args.output, 'w') as outfile:
-            for line in prop_lines:
-                if not line.is_property:
-                    # Write comments, empty lines as they are
-                    outfile.write(f"{line.line}\n")
-                else:
-                    # Check if property has differences
+            if missing:
+                prev_file = None
+                for line in stock_prop_lines:
                     prop = line.property_name
-                    if prop in differences:
-                        # Use stock value if different, otherwise use custom value
-                        if differences[prop]['stock'] != 'NOT_FOUND':
-                            outfile.write(f"{prop}={differences[prop]['stock']}\n")
-                        else:
-                            outfile.write(f"{prop}={differences[prop]['custom']}\n")
-                    else:
-                        # No difference, write original line
+                    if prop in differences and differences[prop].get("stock", "same") == 'NOT_FOUND':
+                        if prev_file != line.file:
+                            outfile.write(f"\n# from {line.file}\n")
+                            prev_file = line.file
                         outfile.write(f"{line.line}\n")
+            else:
+                for line in custom_prop_lines:
+                    if not line.is_property:
+                        # Write comments, empty lines as they are
+                        outfile.write(f"{line.line}\n")
+                    else:
+                        # Check if property has differences
+                        prop = line.property_name
+                        if prop in differences:
+                            # Use stock value if different, otherwise use custom value
+                            if differences[prop]['stock'] != 'NOT_FOUND':
+                                outfile.write(f"{prop}={differences[prop]['stock']}\n")
+                            else:
+                                outfile.write(f"# Missing in stock \n# {prop}={differences[prop]['custom']}\n")
+                        else:
+                            # No difference, write original line
+                            outfile.write(f"{line.line}\n")
         
         print(f"Output file generated: {args.output}")
 
