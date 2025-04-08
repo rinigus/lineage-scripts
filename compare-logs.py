@@ -11,7 +11,7 @@ class DiffEntry:
     line_number_old: int
     line_number_new: int
     content: str
-    
+
 
 class Line:
     def __init__(self, line):
@@ -20,12 +20,16 @@ class Line:
     def sub(self, f, t):
         self.line = re.sub(f, t, self.line)
 
+    def replace(self, o, n):
+        self.line = self.line.replace(o, n)
+
     def skip(self, *starts):
         for s in starts:
             if self.line.startswith(s):
                 return True
         return False
-    
+
+
 def preprocess_dmesg(lines):
     """Preprocess dmesg logs to remove the timing column."""
     processed = []
@@ -35,22 +39,28 @@ def preprocess_dmesg(lines):
         # drop unimportant lines
         if line.skip("healthd: battery l="):
             continue
-        
+
+        # unify some messages
+        line.replace("apexd-bootstrap:", "apexd:")
+        line.replace("/vendor_dlkm/", "/vendor/")
+        line.replace("/system/system_ext", "/system")
+        line.replace(" No alternative instances declared in VINTF.", "")
+
         # replace some values with a dummy
-        line.sub(r'audit\(([\d.]+:\d+)\)', 'audit(REPLACED)')
-        line.sub(r' duration=\d+', ' duration=REPLACED')
-        line.sub(r'Adding to iommu group \d+', 'Adding to iommu group REPLACED')
-        line.sub(r'pid \d+', 'pid REPLACED')
-        line.sub(r'pid=\d+', 'pid=REPLACED')
-        line.sub(r'pid: \d+', 'pid: REPLACED')
-        line.sub(r'pid:\d+', 'pid:REPLACED')
-        line.sub(r'PID: \d+', 'PID: REPLACED')
-        line.sub(r'\[\d+ \]', '[REPLACED ]')
-        line.sub(r'CPU: \d+', 'CPU: R')
-        line.sub(r'Port: \d+', 'Port: R')
-        line.sub(r'took \d+.\d+ seconds', 'took REPLACED seconds')
-        line.sub(r'took \d+ms', 'took REPLACEDms')
-        line.sub(r'took \d+ ms', 'took REPLACED ms')
+        line.sub(r"audit\(([\d.]+:\d+)\)", "audit(REPLACED)")
+        line.sub(r" duration=\d+", " duration=REPLACED")
+        line.sub(r"Adding to iommu group \d+", "Adding to iommu group REPLACED")
+        line.sub(r"pid \d+", "pid REPLACED")
+        line.sub(r"pid=\d+", "pid=REPLACED")
+        line.sub(r"pid: \d+", "pid: REPLACED")
+        line.sub(r"pid:\d+", "pid:REPLACED")
+        line.sub(r"PID: \d+", "PID: REPLACED")
+        line.sub(r"\[\d+ \]", "[REPLACED ]")
+        line.sub(r"CPU: \d+", "CPU: R")
+        line.sub(r"Port: \d+", "Port: R")
+        line.sub(r"took \d+.\d+ seconds", "took REPLACED seconds")
+        line.sub(r"took \d+ms", "took REPLACEDms")
+        line.sub(r"took \d+ ms", "took REPLACED ms")
         processed.append(line.line)
     return processed
 
