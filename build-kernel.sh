@@ -168,8 +168,8 @@ if [ ! -z "${EXT_MODULES}" ]; then
             echo "Building ${EXT_MOD}..."          
             pushd ${MDIR}
             RELATIVE_PATH=$(realpath --no-symlinks --relative-to="$KERNEL_DIR" "$MDIR")
-            make KERNEL_SRC=$KERNEL_DIR OUT_DIR=$BUILD_DIR $KBUILD_OPTIONS M=${RELATIVE_PATH}
-            make KERNEL_SRC=$KERNEL_DIR OUT_DIR=$BUILD_DIR $KBUILD_OPTIONS M=${RELATIVE_PATH} modules_install INSTALL_MOD_PATH=$TEMP_MOD_DIR
+            make -j$(nproc) KERNEL_SRC=$KERNEL_DIR OUT_DIR=$BUILD_DIR $KBUILD_OPTIONS M=${RELATIVE_PATH}
+            make -j$(nproc) KERNEL_SRC=$KERNEL_DIR OUT_DIR=$BUILD_DIR $KBUILD_OPTIONS M=${RELATIVE_PATH} modules_install INSTALL_MOD_PATH=$TEMP_MOD_DIR
             popd
         else
             echo "Warning: External module directory not found: ${EXT_MOD}"
