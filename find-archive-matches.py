@@ -3,6 +3,7 @@
 import argparse
 import difflib
 import hashlib
+import re
 import shutil
 import time
 from pathlib import Path
@@ -49,13 +50,16 @@ def find_first_tag_for_commit(repo, commit):
     return first_tag
 
 
-def find_missing_items(archive_path, git_root, git_subfolder):
+def find_missing_items(archive_path, git_root, git_subfolder, files_to_check):
     """Recursively find files/directories in archive that are not present in Git repository."""
     print("=== Files/Directories in Archive Not in Git Repository ===")
 
     for archive_item in archive_path.rglob("*"):
         relative_path = archive_item.relative_to(archive_path)
         if is_git_related(relative_path):
+            continue
+
+        if files_to_check is not None and str(relative_path) not in files_to_check:
             continue
 
         git_equivalent = git_root / git_subfolder / relative_path
@@ -69,7 +73,7 @@ def find_missing_items(archive_path, git_root, git_subfolder):
                 FilesMissing.append(relative_path)
 
 
-def compare_files(archive_path, git_root, git_subfolder, useDiff):
+def compare_files(archive_path, git_root, git_subfolder, useDiff, files_to_check):
     """Compare files between an archive and a Git repository."""
     first_match_commit = None
     first_min_diff_commit = None
@@ -95,6 +99,9 @@ def compare_files(archive_path, git_root, git_subfolder, useDiff):
         if archive_file.is_file():
             relative_file = archive_file.relative_to(archive_path)
             if is_git_related(relative_file):
+                continue
+
+            if files_to_check is not None and str(relative_file) not in files_to_check:
                 continue
 
             git_file = git_root / git_subfolder / relative_file
@@ -212,6 +219,7 @@ def main():
     parser.add_argument(
         "git_path", type=Path, help="Path to the Git repository or its subfolder."
     )
+    parser.add_argument("--files", default=None, help="Check only these files")
     parser.add_argument("--diff", default=False, action=argparse.BooleanOptionalAction)
     parser.add_argument("--copy-files", action="store_true")
     parser.add_argument("--make-merge-script", action="store_true")
@@ -221,6 +229,7 @@ def main():
 
     archive_path = args.archive_path.resolve()
     git_path = args.git_path.resolve()
+    files_to_check = args.files.split() if args.files is not None else None
 
     if not archive_path.is_dir():
         print(f"Error: Archive path '{archive_path}' is not a directory.")
@@ -246,12 +255,12 @@ def main():
         return
 
     # Perform missing items check
-    find_missing_items(archive_path, git_root, git_subfolder)
+    find_missing_items(archive_path, git_root, git_subfolder, files_to_check)
 
     print()
 
     # Perform file comparison
-    compare_files(archive_path, git_root, git_subfolder, args.diff)
+    compare_files(archive_path, git_root, git_subfolder, args.diff, files_to_check)
 
     print()
     print("\n".join(sorted(Messages)))
@@ -270,11 +279,20 @@ def main():
         with open("merge-script.sh", "w") as fscript:
             files = [str(git_subfolder / f) for f in FilesWithoutMatch]
             files = " ".join(files)
+            files_missing = [str(git_subfolder / f) for f in FilesMissing]
+            files_missing = " ".join(files_missing)
             fscript.write(
 f"""
 #!/bin/bash
 
 set -e
+
+for i in {files_missing}; do
+   mkdir -p `dirname {args.merge_script_export_dir}/$i`
+   cp {archive_root}/$i `dirname {args.merge_script_export_dir}/$i`
+   echo Copied {archive_root}/$i -- `dirname {args.merge_script_export_dir}/$i`
+done
+
 
 for i in {files}; do
    kernel-archive-merge-and-export.sh "{args.merge_script_export_dir}" "{archive_root}" $i
